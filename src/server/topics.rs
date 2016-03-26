@@ -51,20 +51,20 @@ impl Topic {
     ///-----------------------------------------
     /// subscribes this user to this topic.
     ///----------------------------------------- 
-    pub fn subscribe(&self, user_id: String, stream: TcpStream) {
+    pub fn subscribe(&self, user_key: String, stream: TcpStream) {
         let mut dict = self.dict.lock().unwrap();
-        if !dict.contains_key(&user_id) {
-            dict.insert(user_id, stream);
+        if !dict.contains_key(&user_key) {
+            dict.insert(user_key, stream);
         }
     }
     
     ///-----------------------------------------
     /// unsubscribes this user from this topic.
     ///----------------------------------------- 
-    pub fn unsubscribe(&self, user_id: String)  {
+    pub fn unsubscribe(&self, user_key: String)  {
         let mut dict = self.dict.lock().unwrap();
-        if dict.contains_key(&user_id) {
-            dict.remove(&user_id);    
+        if dict.contains_key(&user_key) {
+            dict.remove(&user_key);    
         }
     }
     // -----------------------------------------
@@ -77,6 +77,18 @@ impl Topic {
             stream.write(&mut bytes).unwrap();
         }
     }
+
+    // -----------------------------------------
+    // renames the user_key key.
+    // -----------------------------------------     
+    pub fn rename_user_key(&self, old_user_key: String, new_user_key: String) {
+        let mut dict = self.dict.lock().unwrap();
+        if dict.contains_key(&old_user_key) {
+            let stream = dict.remove(&old_user_key).unwrap();
+            dict.insert(new_user_key, stream);
+        }
+    }
+    
 }
 //------------------------------------
 // Store
@@ -94,38 +106,50 @@ impl Topics {
     ///-----------------------------------------
     /// subscribes this user to this topic.
     ///----------------------------------------- 
-    pub fn subscribe(&self, topic_id: String, user_id: String, stream: TcpStream) {
+    pub fn subscribe(&self, topic_key: String, user_key: String, stream: TcpStream) {
         let mut dict = self.dict.lock().unwrap();
-        if dict.contains_key(&topic_id) {
-            let topic = dict.get(&topic_id).unwrap();
-            topic.subscribe(user_id, stream);
+        if dict.contains_key(&topic_key) {
+            let topic = dict.get(&topic_key).unwrap();
+            topic.subscribe(user_key, stream);
         } else {
             let topic = Topic::new();
-            topic.subscribe(user_id, stream);
-            dict.insert(topic_id, topic);
+            topic.subscribe(user_key, stream);
+            dict.insert(topic_key, topic);
         }
     }
     
     ///-----------------------------------------
     /// unsubscribes this user from this topic.
     ///-----------------------------------------
-    pub fn unsubscribe(&self, topic_id: String, user_id: String) {
+    pub fn unsubscribe(&self, topic_key: String, user_key: String) {
         let dict = self.dict.lock().unwrap();
-        if dict.contains_key(&topic_id) {
-            let topic = dict.get(&topic_id).unwrap();
-            topic.unsubscribe(user_id);
+        if dict.contains_key(&topic_key) {
+            let topic = dict.get(&topic_key).unwrap();
+            topic.unsubscribe(user_key);
         }
     }
     
     ///-----------------------------------------
     // publishes this message.
     ///----------------------------------------- 
-    pub fn publish(&self, topic_id: String, user_id: String, message: String) {
+    pub fn publish(&self, topic_key: String, user_key: String, message: String) {
         let dict = self.dict.lock().unwrap();
-        if dict.contains_key(&topic_id) {
-            let topic   = dict.get(&topic_id).unwrap();
-            let command = Command::Message(topic_id, user_id, message);
+        if dict.contains_key(&topic_key) {
+            let topic   = dict.get(&topic_key).unwrap();
+            let command = Command::Message(topic_key, user_key, message);
             topic.publish(command.serialize());
         }
-    }        
+    }
+    
+    ///-----------------------------------------
+    // renames this user_key.
+    ///-----------------------------------------     
+    pub fn rename_user_key(&self, old_user_key: String, new_user_key:String) {
+        let dict = self.dict.lock().unwrap();
+        for (_, topic) in dict.iter() {
+            topic.rename_user_key(
+                old_user_key.clone(), 
+                new_user_key.clone());
+        }
+    }       
 }

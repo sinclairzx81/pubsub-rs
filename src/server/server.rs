@@ -29,7 +29,7 @@ use std::io::prelude::*;
 use std::io::{BufReader, Result};
 use std::thread;
 use uuid::Uuid;
-
+use std::sync::{Arc, Mutex};
 use super::super::protocol::Command;
 use super::topics::Topics;
 
@@ -41,49 +41,49 @@ use super::topics::Topics;
 ///-----------------------------------------
 struct Client;
 impl Client {
-    
+    ///----------------------------------------------------------
     /// creates a new client with this topic store and stream.
+    ///----------------------------------------------------------
     pub fn create(topics: Topics, stream : TcpStream) -> Result<()> {
         
         //-----------------------------------------
         // initialize client state.
 		//----------------------------------------- 
-        let mut reader  = BufReader::new(stream.try_clone().unwrap());
-        let mut buffer  = String::new();
-        let     user_id = Uuid::new_v4().to_hyphenated_string();
+        let mut reader   = BufReader::new(stream.try_clone().unwrap());
+        let mut buffer   = String::new();
+        let     user_key = Arc::new(Mutex::new(Uuid::new_v4().to_hyphenated_string()));
         
         // -----------------------------------------
         // read from stream.
 		// -----------------------------------------
         while try!(reader.read_line(&mut buffer)) > 0 {
-            let user_id = user_id.clone();
+            let user_key = user_key.clone();
             match Command::parse(&buffer) {
                 Ok(command) => match command {
-                    Command::Identity(_user_id) => {
-                        println!("identity: user: {}", _user_id);
-                        //-------------------------------------
-                        // todo: implement identity change.
-                        //-------------------------------------
+                    Command::Identity(new_user_key) => {
+                        let mut user_key = user_key.lock().unwrap();
+                        topics.rename_user_key(user_key.clone(), new_user_key.clone());
+                        *user_key = new_user_key;
                     },
-                    Command::Subscribe(topic_id) => {
-                        println!("subscribe: user: {} topic: {}", user_id, topic_id);
-                        let stream = stream.try_clone().unwrap();
-                        topics.subscribe(topic_id, user_id, stream);
+                    Command::Subscribe(topic_key) => {
+                        let user_key = user_key.lock().unwrap();
+                        let stream   = stream.try_clone().unwrap();
+                        topics.subscribe(topic_key, user_key.clone(), stream);
                     },
-                    Command::Unsubscribe(topic_id) => {
-                        println!("unsubscribe: user: {} topic: {}", user_id, topic_id);
-                        topics.unsubscribe(topic_id, user_id);                       
+                    Command::Unsubscribe(topic_key) => {
+                        let user_key = user_key.lock().unwrap();
+                        topics.unsubscribe(topic_key, user_key.clone());                       
                     },
-                    Command::Publish(topic_id, message) => {
-                        println!("publish: user: {} topic: {} message: {}", user_id, topic_id, message);
-                        topics.publish(topic_id, user_id, message);
+                    Command::Publish(topic_key, message) => {
+                        let user_key = user_key.lock().unwrap();
+                        topics.publish(topic_key, user_key.clone(), message);
                     },
                     _ => { /* do nothing */ }
-                },
-                Err(error) => println!("{:?}", error)
-            };
-            buffer.clear();  
-        } Ok(())
+                }, Err(error) => println!("{:?}", error)
+            }; buffer.clear();  
+        }
+        println!("ENDED");
+        Ok(())
     }
 }
 
