@@ -78,9 +78,9 @@ impl Topic {
         }
     }
 
-    // -----------------------------------------
-    // renames the user_key key.
-    // -----------------------------------------     
+    ///-----------------------------------------
+    /// renames this user_key to a new key.
+    ///-----------------------------------------     
     pub fn rename_user_key(&self, old_user_key: String, new_user_key: String) {
         let mut dict = self.dict.lock().unwrap();
         if dict.contains_key(&old_user_key) {
@@ -88,6 +88,17 @@ impl Topic {
             dict.insert(new_user_key, stream);
         }
     }
+    
+    ///-----------------------------------------
+    /// deletes this user_key.
+    ///----------------------------------------- 
+    pub fn delete_user_key(&self, user_key:String) {
+        let mut dict = self.dict.lock().unwrap();
+        if dict.contains_key(&user_key) {
+            dict.remove(&user_key).unwrap();
+        }
+    }
+    
     
 }
 //------------------------------------
@@ -130,7 +141,7 @@ impl Topics {
     }
     
     ///-----------------------------------------
-    // publishes this message.
+    /// publishes this message.
     ///----------------------------------------- 
     pub fn publish(&self, topic_key: String, user_key: String, message: String) {
         let dict = self.dict.lock().unwrap();
@@ -142,7 +153,7 @@ impl Topics {
     }
     
     ///-----------------------------------------
-    // renames this user_key.
+    /// renames this user_key.
     ///-----------------------------------------     
     pub fn rename_user_key(&self, old_user_key: String, new_user_key:String) {
         let dict = self.dict.lock().unwrap();
@@ -151,5 +162,15 @@ impl Topics {
                 old_user_key.clone(), 
                 new_user_key.clone());
         }
-    }       
+    } 
+    
+    ///-----------------------------------------
+    /// deletes this user_key.
+    ///-----------------------------------------     
+    pub fn delete_user_key(&self, user_key: String) {
+        let dict = self.dict.lock().unwrap();
+        for (_, topic) in dict.iter() {
+            topic.delete_user_key(user_key.clone());
+        }
+    }          
 }

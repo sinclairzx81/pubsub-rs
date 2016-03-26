@@ -24,15 +24,16 @@
  THE SOFTWARE.
 ---------------------------------------------------------------------------*/
 
+use uuid::Uuid;
+
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use std::io::prelude::*;
 use std::io::{BufReader, Result};
-use std::thread;
-use uuid::Uuid;
 use std::sync::{Arc, Mutex};
+use std::thread;
+
 use super::super::protocol::Command;
 use super::topics::Topics;
-
 
 ///-----------------------------------------
 /// Client
@@ -53,9 +54,9 @@ impl Client {
         let mut buffer   = String::new();
         let     user_key = Arc::new(Mutex::new(Uuid::new_v4().to_hyphenated_string()));
         
-        // -----------------------------------------
+        //-----------------------------------------
         // read from stream.
-		// -----------------------------------------
+		//-----------------------------------------
         while try!(reader.read_line(&mut buffer)) > 0 {
             let user_key = user_key.clone();
             match Command::parse(&buffer) {
@@ -82,7 +83,8 @@ impl Client {
                 }, Err(error) => println!("{:?}", error)
             }; buffer.clear();  
         }
-        println!("ENDED");
+        let user_key = user_key.lock().unwrap();
+        topics.delete_user_key(user_key.clone());
         Ok(())
     }
 }
