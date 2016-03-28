@@ -35,50 +35,62 @@ use std::thread;
 use super::super::protocol::Command;
 use super::topics::Topics;
 
-///-----------------------------------------
-/// Client
+/// Server
 ///
-/// Internally manages a server client.
-///-----------------------------------------
-struct Client;
-impl Client {
-    ///----------------------------------------------------------
+/// Sets up a tcp listener, listens on the given address.
+pub struct Server;
+impl Server {
+    
+    /// binds a pubsub server to this addr.
+    pub fn bind<T: ToSocketAddrs>(addr: T, topics: Topics) -> Result<()> {
+        let listener = try!(TcpListener::bind(addr));
+        for stream in listener.incoming() {
+            let stream  = try!(stream);
+            let topics  = topics.clone();
+            let _       = thread::spawn(move || Server::create_client(topics, stream));
+        } Ok(())
+    }
+    
     /// creates a new client with this topic store and stream.
-    ///----------------------------------------------------------
-    pub fn create(topics: Topics, stream : TcpStream) -> Result<()> {
+    fn create_client(topics: Topics, stream : TcpStream) -> Result<()> {
         
-        //-----------------------------------------
         // initialize client state.
-		//----------------------------------------- 
         let mut reader   = BufReader::new(stream.try_clone().unwrap());
         let mut buffer   = String::new();
         let     user_key = Arc::new(Mutex::new(Uuid::new_v4().to_hyphenated_string()));
         
-        //-----------------------------------------
         // read from stream.
-		//-----------------------------------------
         while try!(reader.read_line(&mut buffer)) > 0 {
             let user_key = user_key.clone();
             match Command::parse(&buffer) {
                 Ok(command) => match command {
+                    
+                    // update user_key with new value.
                     Command::Identity(new_user_key) => {
                         let mut user_key = user_key.lock().unwrap();
                         topics.rename_user_key(user_key.clone(), new_user_key.clone());
                         *user_key = new_user_key;
                     },
+                    
+                    // subscribe this user to this topic.
                     Command::Subscribe(topic_key) => {
                         let user_key = user_key.lock().unwrap();
                         let stream   = stream.try_clone().unwrap();
                         topics.subscribe(topic_key, user_key.clone(), stream);
                     },
+                    
+                    // unsubscribe this user from this topic.
                     Command::Unsubscribe(topic_key) => {
                         let user_key = user_key.lock().unwrap();
                         topics.unsubscribe(topic_key, user_key.clone());                       
                     },
+                    
+                    // publish this message to this topic.
                     Command::Publish(topic_key, message) => {
                         let user_key = user_key.lock().unwrap();
                         topics.publish(topic_key, user_key.clone(), message);
                     },
+                    
                     _ => { /* do nothing */ }
                 }, Err(error) => println!("{:?}", error)
             }; buffer.clear();  
@@ -86,27 +98,5 @@ impl Client {
         let user_key = user_key.lock().unwrap();
         topics.delete_user_key(user_key.clone());
         Ok(())
-    }
-}
-
-///-----------------------------------------
-/// Server
-///
-/// Sets up a tcp listener, listens on the 
-/// given port.
-///-----------------------------------------
-pub struct Server;
-impl Server {
-    
-    ///------------------------------------------
-    /// binds a pubsub server to this addr.
-    ///------------------------------------------
-    pub fn bind<T: ToSocketAddrs>(addr: T, topics: Topics) -> Result<()> {
-        let listener = try!(TcpListener::bind(addr));
-        for stream in listener.incoming() {
-            let stream  = try!(stream);
-            let topics  = topics.clone();
-            let _       = thread::spawn(move || Client::create(topics, stream));
-        } Ok(())
-    }
+    }    
 }

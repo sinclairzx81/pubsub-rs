@@ -26,5 +26,5 @@
 
 pub mod command;
 
-pub use self::command::Error;
+pub use self::command::ParseError;
 pub use self::command::Command;

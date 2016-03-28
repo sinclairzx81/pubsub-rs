@@ -24,21 +24,34 @@
  THE SOFTWARE.
 ---------------------------------------------------------------------------*/
 
-
-#[derive(Debug)]
-pub struct Error {
-    message: String
-}
-impl Error {
-    pub fn new(message: String) -> Error {
-        Error {
-            message: message
-        }
-    } 
-}
+use std::error;
+use std::fmt;
 
 ///---------------------------------------------------------------------
 ///
+/// ParseError:
+///
+///---------------------------------------------------------------------
+#[derive(Debug)]
+pub struct ParseError {
+    input: String
+}
+impl ParseError {
+    pub fn new(input: String) -> ParseError {
+        ParseError { input: input }
+    } 
+}
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ParseError: - {}", self.input)
+    }
+}
+impl error::Error for ParseError {
+    fn description(&self) -> &str {
+        &self.input
+    }
+}
+
 /// Command:
 ///
 /// Protocol command type passed along transport. The protocol is 
@@ -51,8 +64,6 @@ impl Error {
 ///  p:topic:message      - (client->server) publishes this message to this topic.
 ///  m:topic:user:message - (server->client) a published message sent to this topic.
 ///
-///---------------------------------------------------------------------
-
 #[derive(Debug)]
 pub enum Command {
   Identity      (String),       
@@ -63,23 +74,22 @@ pub enum Command {
 }
 
 impl Command {
-  ///---------------------------------------------
   /// serializes this command to string.
-  ///---------------------------------------------
   pub fn serialize(&self) -> String {
     match *self {
-        Command::Identity    (ref user)                         => format!("i:{}",       user),
-        Command::Subscribe   (ref topic)                        => format!("s:{}",       topic),
-        Command::Unsubscribe (ref topic)                        => format!("u:{}",       topic),
-        Command::Publish     (ref topic, ref message)           => format!("p:{}:{}",    topic, message),
-        Command::Message     (ref topic, ref user, ref message) => format!("m:{}:{}:{}", topic, user, message)
+        Command::Identity    (ref user)    => format!("i:{}", user),
+        Command::Subscribe   (ref topic)   => format!("s:{}", topic),
+        Command::Unsubscribe (ref topic)   => format!("u:{}", topic),
+        Command::Publish     (ref topic, 
+                              ref message) => format!("p:{}:{}", topic, message),
+        Command::Message     (ref topic, 
+                              ref user, 
+                              ref message) => format!("m:{}:{}:{}", topic, user, message)
     }
   }
   
-  ///---------------------------------------------
   /// parse this line into a protocol command.
-  ///---------------------------------------------
-  pub fn parse(command: &str) -> Result<Command, Error> {
+  pub fn parse(command: &str) -> Result<Command, ParseError> {
     let command = command.trim_right();
     let split   = command.splitn(2, ":").collect::<Vec<_>>();
     if split.len() == 2 {
@@ -120,8 +130,8 @@ impl Command {
                     return Ok(command);
                 }
             }
-        }, _ => {/* defer to error.*/ }
+        }, _ => { /* defer to error.*/ }
       }
-    } return Err(Error::new(format!("invalid command: {}", command)));
+    } return Err(ParseError::new(command.to_string()));
   }
 }
